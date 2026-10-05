@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net6.0</TargetFramework>
+    <AssemblyName>BFEsp</AssemblyName>
+    <Nullable>disable</Nullable>
+    <ImplicitUsings>disable</ImplicitUsings>
+    <LangVersion>latest</LangVersion>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
+    <DebugType>none</DebugType>
+    <GameDir>C:\Program Files (x86)\Steam\steamapps\common\Bullet Force</GameDir>
+  </PropertyGroup>
+  <ItemGroup>
+    <Reference Include="$(GameDir)\MelonLoader\net6\MelonLoader.dll"><Private>false</Private></Reference>
+    <Reference Include="$(GameDir)\MelonLoader\net6\Il2CppInterop.Runtime.dll"><Private>false</Private></Reference>
+    <Reference Include="$(GameDir)\MelonLoader\net6\Il2CppInterop.Common.dll"><Private>false</Private></Reference>
+    <Reference Include="$(GameDir)\MelonLoader\net6\0Harmony.dll"><Private>false</Private></Reference>
+    <Reference Include="$(GameDir)\MelonLoader\Il2CppAssemblies\*.dll"
+               Exclude="$(GameDir)\MelonLoader\Il2CppAssemblies\netstandard.dll;$(GameDir)\MelonLoader\Il2CppAssemblies\mscorlib.dll">
+      <Private>false</Private>
+    </Reference>
+  </ItemGroup>
+</Project>
