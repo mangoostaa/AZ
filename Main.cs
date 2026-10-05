@@ -56,6 +56,7 @@ namespace BFEsp
         private float _flySpeed = 16f;
         private float _speedAmount = 12f;   // extra units/sec added on top of normal walk
         private float _footOffset = 1f;
+        private float _extNext;
         private CharacterController _cc; private Rigidbody _rb; private float _moveScanT;
         private readonly List<Collider> _disabledCols = new List<Collider>();
         private bool _movePrev;
@@ -81,10 +82,10 @@ namespace BFEsp
         // menu — 4 independent draggable windows
         private bool _menuOpen;
         private static bool _sMenuOpen;      // mirror so fire hooks can block click-through
-        private Rect _winAim  = new Rect(30f, 30f, 330f, 470f);   // left column, top
-        private Rect _winEsp  = new Rect(30f, 516f, 330f, 300f);  // left column, below aimbot
+        private Rect _winAim = new Rect(30f, 30f, 330f, 470f);   // left column, top
+        private Rect _winEsp = new Rect(30f, 516f, 330f, 300f);  // left column, below aimbot
         private Rect _winMove = new Rect(378f, 30f, 320f, 232f);  // right column, top
-        private Rect _winGun  = new Rect(378f, 278f, 320f, 300f); // right column, below movement
+        private Rect _winGun = new Rect(378f, 278f, 320f, 300f); // right column, below movement
         private Rect _winMisc = new Rect(378f, 594f, 320f, 250f); // right column, below gun
         private KeyCode _menuKey = KeyCode.Alpha5;
         private bool _menuBindListening;
@@ -260,24 +261,40 @@ namespace BFEsp
         private static float _sPhpT, _sHalpT, _sDpT;
         private static void HitLog_PHP(PlayerScript __instance, int __0, float __1, Vector3 __2, byte __3, Vector3 __4, Vector3 __5, bool __6, bool __7)
         {
-            try { if (Time.time - _sPhpT < 0.25f) return; _sPhpT = Time.time;
-                MelonLogger.Msg("HIT>PlayerHitPlayer inst=" + NameOf(__instance) + " id=" + __0 + " dmg=" + __1.ToString("F1") + " pt=" + __2.ToString("F2") + " bodyPart=" + __3 + " v4=" + __4.ToString("F2") + " v5=" + __5.ToString("F2") + " b6=" + __6 + " b7=" + __7); } catch { }
+            try
+            {
+                if (Time.time - _sPhpT < 0.25f) return; _sPhpT = Time.time;
+                MelonLogger.Msg("HIT>PlayerHitPlayer inst=" + NameOf(__instance) + " id=" + __0 + " dmg=" + __1.ToString("F1") + " pt=" + __2.ToString("F2") + " bodyPart=" + __3 + " v4=" + __4.ToString("F2") + " v5=" + __5.ToString("F2") + " b6=" + __6 + " b7=" + __7);
+            }
+            catch { }
         }
         private static void HitLog_HALP(PlayerScript __instance, Vector3 __0, PlayerScript __1)
         {
-            try { if (Time.time - _sHalpT < 0.25f) return; _sHalpT = Time.time;
-                MelonLogger.Msg("HIT>HitAtLocalPoint inst=" + NameOf(__instance) + " pt=" + __0.ToString("F2") + " target=" + NameOf(__1)); } catch { }
+            try
+            {
+                if (Time.time - _sHalpT < 0.25f) return; _sHalpT = Time.time;
+                MelonLogger.Msg("HIT>HitAtLocalPoint inst=" + NameOf(__instance) + " pt=" + __0.ToString("F2") + " target=" + NameOf(__1));
+            }
+            catch { }
         }
         private static void HitLog_DP(PlayerScript __instance, float __0, Transform __1, Vector3 __2, bool __3)
         {
-            try { if (Time.time - _sDpT < 0.25f) return; _sDpT = Time.time;
-                MelonLogger.Msg("HIT>damagePlayer inst=" + NameOf(__instance) + " dmg=" + __0.ToString("F1") + " bone=" + (__1 != null ? __1.name : "null") + " pt=" + __2.ToString("F2") + " b3=" + __3); } catch { }
+            try
+            {
+                if (Time.time - _sDpT < 0.25f) return; _sDpT = Time.time;
+                MelonLogger.Msg("HIT>damagePlayer inst=" + NameOf(__instance) + " dmg=" + __0.ToString("F1") + " bone=" + (__1 != null ? __1.name : "null") + " pt=" + __2.ToString("F2") + " b3=" + __3);
+            }
+            catch { }
         }
         private static float _sPhpoT;
         private static void HitLog_PHPO(PlayerScript __instance, int __0, float __1, Vector3 __2, byte __3, Vector3 __4, Vector3 __5, bool __6, long __7, byte __8)
         {
-            try { if (Time.time - _sPhpoT < 0.2f) return; _sPhpoT = Time.time;
-                MelonLogger.Msg("HIT>PlayerHitPlayerOnce inst=" + NameOf(__instance) + " id=" + __0 + " dmg=" + __1.ToString("F1") + " pt=" + __2.ToString("F2") + " bp=" + __3 + " v4=" + __4.ToString("F2") + " v5=" + __5.ToString("F2") + " b6=" + __6 + " l7=" + __7 + " by8=" + __8); } catch { }
+            try
+            {
+                if (Time.time - _sPhpoT < 0.2f) return; _sPhpoT = Time.time;
+                MelonLogger.Msg("HIT>PlayerHitPlayerOnce inst=" + NameOf(__instance) + " id=" + __0 + " dmg=" + __1.ToString("F1") + " pt=" + __2.ToString("F2") + " bp=" + __3 + " v4=" + __4.ToString("F2") + " v5=" + __5.ToString("F2") + " b6=" + __6 + " l7=" + __7 + " by8=" + __8);
+            }
+            catch { }
         }
 
         // FireOneShot(int, float, Vector3 __2, Vector3 __3, byte, byte, double, int, long)
@@ -372,7 +389,7 @@ namespace BFEsp
                 sb.AppendLine("extEsp=" + _extEsp);
                 sb.AppendLine("triggerbot=" + _triggerbot); sb.AppendLine("triggerKey=" + (int)_triggerKey); sb.AppendLine("tbDelay=" + _tbDelay.ToString(CultureInfo.InvariantCulture));
                 sb.AppendLine("fastFire=" + _fastFire); sb.AppendLine("fireMult=" + _fireMult.ToString(CultureInfo.InvariantCulture));
-                sb.AppendLine("noRecoil=" + _noRecoil); sb.AppendLine("noSpread=" + _noSpread); sb.AppendLine("unlimAmmo=" + _unlimAmmo); sb.AppendLine("noFireDelay=" + _noFireDelay);                sb.AppendLine("flySpeed=" + _flySpeed.ToString(CultureInfo.InvariantCulture));
+                sb.AppendLine("noRecoil=" + _noRecoil); sb.AppendLine("noSpread=" + _noSpread); sb.AppendLine("unlimAmmo=" + _unlimAmmo); sb.AppendLine("noFireDelay=" + _noFireDelay); sb.AppendLine("flySpeed=" + _flySpeed.ToString(CultureInfo.InvariantCulture));
                 sb.AppendLine("speedAmount=" + _speedAmount.ToString(CultureInfo.InvariantCulture));
                 sb.AppendLine("bhop=" + _bhop);
                 sb.AppendLine("aimx=" + _winAim.x.ToString(CultureInfo.InvariantCulture)); sb.AppendLine("aimy=" + _winAim.y.ToString(CultureInfo.InvariantCulture));
@@ -490,6 +507,12 @@ namespace BFEsp
                 if (_bhop && _local != null && Input.GetKey(KeyCode.Space))
                 {
                     try { if (_local.isPlayerGrounded) _local.Jump(); } catch (Exception e) { LoggerInstance.Warning("bhop: " + e.Message); _bhop = false; }
+                }
+                // ESP externo: 20 Hz es más que suficiente, y NO en OnGUI (que corre varias veces por frame)
+                if (_extEsp && Time.time >= _extNext)
+                {
+                    _extNext = Time.time + 0.05f;
+                    try { UpdateExternalEsp(); } catch { }
                 }
             }
             catch (Exception e) { LoggerInstance.Warning("OnUpdate: " + e.Message); }
@@ -707,7 +730,9 @@ namespace BFEsp
         {
             Shader sh = Shader.Find("Hidden/Internal-Colored"); if (sh == null) sh = Shader.Find("Sprites/Default"); if (sh == null) sh = Shader.Find("Unlit/Color");
             var m = new Material(sh); m.hideFlags = HideFlags.HideAndDontSave;
-            try { m.SetInt("_ZTest", ztest); } catch { } try { m.SetInt("_ZWrite", 0); } catch { } try { m.SetInt("_Cull", 0); } catch { }
+            try { m.SetInt("_ZTest", ztest); } catch { }
+            try { m.SetInt("_ZWrite", 0); } catch { }
+            try { m.SetInt("_Cull", 0); } catch { }
             SetMatColor(m, col); return m;
         }
         private void SetMatColor(Material m, Color c) { try { m.SetColor("_Color", c); } catch { } try { m.color = c; } catch { } }
@@ -975,8 +1000,7 @@ namespace BFEsp
                 GUI.color = Color.white;
                 if (_extEsp)
                 {
-                    UpdateExternalEsp();
-                    // NADA más aquí: el FOV circle ya lo dibuja el overlay externo
+                    // ESP externo: ya se actualiza desde OnUpdate a 20 Hz; aquí no tocamos nada
                 }
                 else
                 {
@@ -997,7 +1021,7 @@ namespace BFEsp
             catch (Exception e) { LoggerInstance.Warning("OnGUI: " + e.Message); }
         }
 
-        // ---- draggable, opaque, auto-height window frame ----
+        // ---- ESP externo: computa la escena (throttled desde OnUpdate, NO desde OnGUI) ----
         private void UpdateExternalEsp()
         {
             if (!_esp || _local == null) { Overlay.SetScene(null, "BF ESP (off)", false, 0); return; }

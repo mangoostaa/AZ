@@ -29,6 +29,7 @@ namespace BFEsp
         private static EspEntry[] _entries = Array.Empty<EspEntry>();
         private static string _hud = "";
         private static bool _fovOn; private static int _fovR;
+        private static volatile bool _dirty = true;   // repintar solo cuando cambie la escena
 
         public static void SetScene(List<EspEntry> entries, string hud, bool fov, int fovRadius)
         {
@@ -36,6 +37,7 @@ namespace BFEsp
             {
                 _entries = entries != null ? entries.ToArray() : Array.Empty<EspEntry>();
                 _hud = hud ?? ""; _fovOn = fov; _fovR = fovRadius;
+                _dirty = true;   // hay datos nuevos → el hilo del overlay repinta
             }
         }
 
@@ -110,7 +112,7 @@ namespace BFEsp
         [DllImport("gdi32.dll")] static extern bool Rectangle(IntPtr dc, int l, int t, int r, int b);
         [DllImport("gdi32.dll")] static extern bool Ellipse(IntPtr dc, int l, int t, int r, int b);
         [DllImport("gdi32.dll")] static extern IntPtr GetStockObject(int i);
-        [DllImport("gdi32.dll", CharSet = CharSet.Unicode)] static extern IntPtr CreateFontW(int h, int w, int e, int o, int weight, uint it, uint un, uint st, uint cs, uint op, uint cp, uint q, uint pf, string face);
+        [DllImport("gdi32.dll", CharSet = CharSet.Unicode)] static extern IntPtr CreateFontW(int h, int w, int e, int o, int weight, uint it, uint un, int st, int cs, uint op, uint cp, uint q, uint pf, string face);
         [DllImport("gdi32.dll")] static extern uint SetTextColor(IntPtr dc, uint c);
         [DllImport("gdi32.dll")] static extern int SetBkMode(IntPtr dc, int mode);
         [DllImport("user32.dll", CharSet = CharSet.Unicode)] static extern int DrawTextW(IntPtr dc, string s, int n, ref RECT r, uint flags);
@@ -122,6 +124,7 @@ namespace BFEsp
         private static float _lastTop;
         private static bool _classOk;
         private static bool _loggedOnce;
+        private static IntPtr _fnt = IntPtr.Zero;   // fuente cacheada: NO crear/destruir cada frame
 
         private static void Run()
         {
@@ -148,6 +151,9 @@ namespace BFEsp
                 CaptureExcluded = SetWindowDisplayAffinity(_hwnd, 0x11);
                 _log("overlay: EXCLUDEFROMCAPTURE=" + (CaptureExcluded ? "OK (invisible al grabar)" : "FALLO (Win10 2004+ necesario)"));
 
+                // fuente una sola vez, reutilizada en todos los frames
+                _fnt = CreateFontW(-13, 0, 0, 0, 700, 0, 0, 0, 1 /*DEFAULT_CHARSET*/, 0, 0, 5 /*CLEARTYPE*/, 0, "Arial");
+
                 while (_running)
                 {
                     if (!IsWindow(game))   // ventana recreada / partida cerrada
@@ -157,10 +163,11 @@ namespace BFEsp
                     }
                     while (PeekMessageW(out var m, IntPtr.Zero, 0, 0, 1)) DispatchMessageW(ref m);
                     Track(game);
-                    Render();
+                    Render();   // solo pinta si _dirty (escena nueva / resize)
                     if (Time32() - _lastTop > 3000) { _lastTop = Time32(); SetWindowPos(_hwnd, (IntPtr)(-1), 0, 0, 0, 0, 0x13); }
-                    Thread.Sleep(8);
+                    Thread.Sleep(15);   // antes 8 → max ~60 Hz de bucle, y con dirty-flag el trabajo real es 20 Hz
                 }
+                if (_fnt != IntPtr.Zero) { DeleteObject(_fnt); _fnt = IntPtr.Zero; }
                 DestroyWindow(_hwnd);
             }
             catch (Exception e) { _log("overlay ex: " + e.Message); }
@@ -178,6 +185,7 @@ namespace BFEsp
             {
                 _w = w; _h = h; _gx = p.X; _gy = p.Y; _bmpOk = false;
                 SetWindowPos(_hwnd, (IntPtr)(-1), p.X, p.Y, w, h, 0x40 /*SWP_SHOWWINDOW*/);
+                _dirty = true;   // resize/move → repintar con el nuevo tamaño
             }
         }
 
@@ -214,14 +222,15 @@ namespace BFEsp
         private static void Render()
         {
             if (_hwnd == IntPtr.Zero || _w <= 8) return;
-            if (!_loggedOnce) { _loggedOnce = true; _log("overlay: render activo " + _w + "x" + _h + " en (" + _gx + "," + _gy + ")"); }
+            if (!_dirty) return;   // nada cambió → 0 trabajo, 0 BitBlt, 0 GDI allocations
+
             IntPtr dc = GetDC(_hwnd); if (dc == IntPtr.Zero) return;
             IntPtr mdc = CreateCompatibleDC(dc);
             if (!_bmpOk) { if (_bmp != IntPtr.Zero) DeleteObject(_bmp); _bmp = CreateCompatibleBitmap(dc, _w, _h); _bmpOk = true; }
             SelectObject(mdc, _bmp);
 
-            var fnt = CreateFontW(-13, 0, 0, 0, 700, 0, 0, 0, 1 /*DEFAULT_CHARSET*/, 0, 0, 5 /*CLEARTYPE*/, 0, "Arial");
-            IntPtr of = SelectObject(mdc, fnt);
+            if (_fnt == IntPtr.Zero) _fnt = CreateFontW(-13, 0, 0, 0, 700, 0, 0, 0, 1, 0, 0, 5, 0, "Arial");
+            IntPtr of = SelectObject(mdc, _fnt);
             SetBkMode(mdc, 1 /*TRANSPARENT*/);
 
             // fondo = color key (transparente)
@@ -258,9 +267,10 @@ namespace BFEsp
                 SelectObject(mdc, ob); SelectObject(mdc, op); DeleteObject(pen);
             }
 
-            SelectObject(mdc, of); DeleteObject(fnt);
+            SelectObject(mdc, of);
             BitBlt(dc, 0, 0, _w, _h, mdc, 0, 0, 0x00CC0020 /*SRCCOPY*/);
             DeleteDC(mdc); ReleaseDC(_hwnd, dc);
+            _dirty = false;   // pintado; no repetir hasta la próxima escena nueva
         }
 
         private static void Box(IntPtr dc, int l, int t, int r, int b, uint col, int wpx)
