@@ -13,7 +13,7 @@ using Il2Cpp;
 using Il2CppInterop.Runtime.InteropTypes.Arrays;
 using Object = UnityEngine.Object;
 
-[assembly: MelonInfo(typeof(BFEsp.Core), "BF ESP", "5.0.0", "AZ")]
+[assembly: MelonInfo(typeof(BFEsp.Core), "BF ESP", "5.5.0", "KlavinAZ")]
 [assembly: MelonGame(null, null)]
 
 namespace BFEsp
@@ -74,6 +74,20 @@ namespace BFEsp
         private float _tbNextShot;
         private static readonly float[] PartY = { 1.6f, 1.1f, 0.5f };
         private static readonly string[] PartName = { "Head", "Chest", "Pelvis" };
+        // ===== UI theme =====
+        private static readonly Color UiBg = new Color(0.06f, 0.07f, 0.09f, 0.97f);
+        private static readonly Color UiBorder = new Color(0.18f, 0.42f, 0.72f, 0.65f);
+        private static readonly Color UiTitle = new Color(0.09f, 0.22f, 0.40f, 1f);
+        private static readonly Color UiAccent = new Color(0.25f, 0.72f, 1f, 1f);
+        private static readonly Color UiMuted = new Color(0.55f, 0.60f, 0.68f, 0.95f);
+        private static readonly Color UiBtn = new Color(0.14f, 0.16f, 0.20f, 1f);
+        private static readonly Color UiBtnOn = new Color(0.12f, 0.55f, 0.32f, 1f);
+        private static readonly Color UiDanger = new Color(0.75f, 0.22f, 0.22f, 1f);
+
+        private GUIStyle _titleStyle;
+        private GUIStyle _sectionStyle;
+        private GUIStyle _hintStyle;
+        private GUIStyle _hudStyle;
 
         // FOV circle
         private bool _showFov = true;
@@ -82,11 +96,11 @@ namespace BFEsp
         // menu — 4 independent draggable windows
         private bool _menuOpen;
         private static bool _sMenuOpen;      // mirror so fire hooks can block click-through
-        private Rect _winAim = new Rect(30f, 30f, 330f, 470f);   // left column, top
-        private Rect _winEsp = new Rect(30f, 516f, 330f, 300f);  // left column, below aimbot
-        private Rect _winMove = new Rect(378f, 30f, 320f, 232f);  // right column, top
-        private Rect _winGun = new Rect(378f, 278f, 320f, 300f); // right column, below movement
-        private Rect _winMisc = new Rect(378f, 594f, 320f, 250f); // right column, below gun
+        private Rect _winAim = new Rect(24f, 24f, 340f, 500f);
+        private Rect _winEsp = new Rect(24f, 540f, 340f, 340f);
+        private Rect _winMove = new Rect(380f, 24f, 300f, 250f);
+        private Rect _winGun = new Rect(380f, 290f, 300f, 280f);
+        private Rect _winMisc = new Rect(380f, 586f, 300f, 260f);
         private KeyCode _menuKey = KeyCode.Alpha5;
         private bool _menuBindListening;
         private CursorLockMode _prevLock = CursorLockMode.Locked;   // cursor state before the menu opened
@@ -1022,7 +1036,77 @@ namespace BFEsp
             }
             catch (Exception e) { LoggerInstance.Warning("OnGUI: " + e.Message); }
         }
+        private void EnsureUiStyles()
+        {
+            if (_titleStyle == null)
+            {
+                _titleStyle = new GUIStyle(GUI.skin.label);
+                _titleStyle.fontSize = 13;
+                _titleStyle.fontStyle = FontStyle.Bold;
+                _titleStyle.normal.textColor = Color.white;
+            }
+            if (_sectionStyle == null)
+            {
+                _sectionStyle = new GUIStyle(GUI.skin.label);
+                _sectionStyle.fontSize = 11;
+                _sectionStyle.fontStyle = FontStyle.Bold;
+                _sectionStyle.normal.textColor = UiAccent;
+            }
+            if (_hintStyle == null)
+            {
+                _hintStyle = new GUIStyle(GUI.skin.label);
+                _hintStyle.fontSize = 10;
+                _hintStyle.wordWrap = true;
+                _hintStyle.normal.textColor = UiMuted;
+            }
+            if (_creditStyle == null)
+            {
+                _creditStyle = new GUIStyle(GUI.skin.label);
+                _creditStyle.alignment = TextAnchor.MiddleRight;
+                _creditStyle.fontSize = 10;
+                _creditStyle.fontStyle = FontStyle.Bold;
+                _creditStyle.normal.textColor = new Color(0.70f, 0.82f, 1f, 0.55f);
+            }
+        }
 
+        private void Section(string title)
+        {
+            GUILayout.Space(8f);
+            GUILayout.Label("▸  " + title.ToUpperInvariant(), _sectionStyle);
+            // línea fina
+            if (_pix != null)
+            {
+                var r = GUILayoutUtility.GetRect(1f, 1f, GUILayout.ExpandWidth(true));
+                var c = GUI.color;
+                GUI.color = new Color(UiAccent.r, UiAccent.g, UiAccent.b, 0.35f);
+                GUI.DrawTexture(new Rect(r.x, r.y, r.width, 1f), _pix);
+                GUI.color = c;
+            }
+            GUILayout.Space(4f);
+        }
+
+        private void Hint(string text)
+        {
+            GUILayout.Label(text, _hintStyle);
+        }
+
+        private bool PrimaryButton(string label, float height = 26f)
+        {
+            var prev = GUI.backgroundColor;
+            GUI.backgroundColor = UiBtn;
+            bool clicked = GUILayout.Button(label, GUILayout.Height(height));
+            GUI.backgroundColor = prev;
+            return clicked;
+        }
+
+        private bool ToggleButton(string label, bool on, float height = 26f)
+        {
+            var prev = GUI.backgroundColor;
+            GUI.backgroundColor = on ? UiBtnOn : UiBtn;
+            bool clicked = GUILayout.Button(label, GUILayout.Height(height));
+            GUI.backgroundColor = prev;
+            return clicked;
+        }
         // ---- ESP externo: computa la escena (throttled desde OnUpdate, NO desde OnGUI) ----
         private void UpdateExternalEsp()
         {
@@ -1030,7 +1114,7 @@ namespace BFEsp
             var cam = PickCamera();
             if (cam == null || cam.transform.position.y < -100f)
             {
-                Overlay.SetScene(null, "BF ESP  aim:" + ModeName[_aimMode] + " (lobby, esperando partida)", false, 0);
+                Overlay.SetScene(null, "BF ESP  aim:" + ModeName[_aimMode] + " (lobby, Waiting for match)", false, 0);
                 return;
             }
 
@@ -1084,10 +1168,13 @@ namespace BFEsp
 
         private void DrawWindow(ref Rect win, int id, string title, Action content)
         {
+            EnsureUiStyles();
+            if (_pix == null) { _pix = new Texture2D(1, 1); _pix.SetPixel(0, 0, Color.white); _pix.Apply(); }
+
             var ev = Event.current;
             if (ev != null)
             {
-                Rect bar = new Rect(win.x, win.y, win.width, 26f);
+                Rect bar = new Rect(win.x, win.y, win.width, 28f);
                 if (ev.type == EventType.MouseDown && bar.Contains(ev.mousePosition) && _dragId == 0)
                 { _dragId = id; _dragOff = ev.mousePosition - new Vector2(win.x, win.y); }
                 else if (ev.type == EventType.MouseUp && _dragId == id) _dragId = 0;
@@ -1095,153 +1182,152 @@ namespace BFEsp
                 { win.x = ev.mousePosition.x - _dragOff.x; win.y = ev.mousePosition.y - _dragOff.y; }
             }
 
-            if (_pix == null) { _pix = new Texture2D(1, 1); _pix.SetPixel(0, 0, Color.white); _pix.Apply(); }
+            // sombra suave
+            GUI.color = new Color(0f, 0f, 0f, 0.35f);
+            GUI.DrawTexture(new Rect(win.x + 3f, win.y + 4f, win.width, win.height), _pix);
 
             // fondo
-            GUI.color = new Color(0.07f, 0.08f, 0.10f, 0.96f);
+            GUI.color = UiBg;
             GUI.DrawTexture(win, _pix);
 
-            // borde sutil
-            GUI.color = new Color(0.20f, 0.45f, 0.70f, 0.55f);
+            // borde
+            GUI.color = UiBorder;
             GUI.DrawTexture(new Rect(win.x, win.y, win.width, 1f), _pix);
             GUI.DrawTexture(new Rect(win.x, win.y + win.height - 1f, win.width, 1f), _pix);
             GUI.DrawTexture(new Rect(win.x, win.y, 1f, win.height), _pix);
             GUI.DrawTexture(new Rect(win.x + win.width - 1f, win.y, 1f, win.height), _pix);
 
             // title bar
-            GUI.color = new Color(0.12f, 0.28f, 0.48f, 1f);
-            GUI.DrawTexture(new Rect(win.x, win.y, win.width, 26f), _pix);
+            GUI.color = UiTitle;
+            GUI.DrawTexture(new Rect(win.x, win.y, win.width, 28f), _pix);
 
-            // accent line bajo el título
-            GUI.color = new Color(0.30f, 0.70f, 1f, 0.9f);
-            GUI.DrawTexture(new Rect(win.x, win.y + 26f, win.width, 2f), _pix);
+            // accent bajo título
+            GUI.color = UiAccent;
+            GUI.DrawTexture(new Rect(win.x, win.y + 28f, win.width, 2f), _pix);
 
             GUI.color = Color.white;
-            if (_creditStyle == null)
-            {
-                _creditStyle = new GUIStyle(GUI.skin.label);
-                _creditStyle.alignment = TextAnchor.MiddleRight;
-                _creditStyle.fontStyle = FontStyle.Bold;
-                _creditStyle.fontSize = 11;
-                _creditStyle.normal.textColor = new Color(0.75f, 0.85f, 1f, 0.7f);
-            }
-            GUI.Label(new Rect(win.x, win.y + 3f, win.width - 10f, 20f), "BF", _creditStyle);
+            GUI.Label(new Rect(win.x + 10f, win.y + 5f, win.width - 50f, 20f), title, _titleStyle);
+            GUI.Label(new Rect(win.x, win.y + 4f, win.width - 10f, 20f), "BF", _creditStyle);
 
-            GUILayout.BeginArea(new Rect(win.x + 10f, win.y + 32f, win.width - 20f, win.height - 40f));
-            GUILayout.Label("<b>" + title + "</b>");
-            GUILayout.Space(4f);
+            GUILayout.BeginArea(new Rect(win.x + 12f, win.y + 36f, win.width - 24f, win.height - 48f));
             content();
             GUILayout.EndArea();
         }
 
         private void AimContent()
         {
-            Section("MODO");
+            Section("Modo");
             GUILayout.BeginHorizontal();
             for (int i = 0; i < 4; i++)
             {
-                GUI.backgroundColor = _aimMode == i ? new Color(0.2f, 0.75f, 0.35f) : new Color(0.25f, 0.28f, 0.32f);
-                if (GUILayout.Button(ModeName[i], GUILayout.Height(24f))) _aimMode = i;
+                if (ToggleButton(ModeName[i], _aimMode == i, 28f))
+                    _aimMode = i;
             }
-            GUI.backgroundColor = Color.white;
             GUILayout.EndHorizontal();
 
-            Section("OPCIONES");
-            _aimWallcheck = GUILayout.Toggle(_aimWallcheck, " Solo visibles (wallcheck)");
-            if (GUILayout.Button(_bindListening ? "… pulsá una tecla …" : "Tecla Memory: " + _aimKey))
+            Section("Options");
+            _aimWallcheck = GUILayout.Toggle(_aimWallcheck, "  Only visible enemies");
+            if (PrimaryButton(_bindListening ? "… waiting for key press …" : "Key Memory   ·   " + _aimKey))
                 _bindListening = true;
-            if (GUILayout.Button("Parte: " + PartName[_aimPart]))
+            if (PrimaryButton("part of the body   ·   " + PartName[_aimPart]))
                 _aimPart = (_aimPart + 1) % 3;
 
-            GUILayout.Label("FOV  " + _aimFov.ToString("F0") + " px");
+            GUILayout.Space(4f);
+            GUILayout.Label("FOV   " + _aimFov.ToString("F0") + " px");
             _aimFov = GUILayout.HorizontalSlider(_aimFov, 20f, 500f);
-
-            GUILayout.Label("Smooth  " + _aimSmooth.ToString("F2"));
+            GUILayout.Label("Smooth   " + _aimSmooth.ToString("F2"));
             _aimSmooth = GUILayout.HorizontalSlider(_aimSmooth, 0.03f, 1f);
 
-            _showFov = GUILayout.Toggle(_showFov, " Círculo FOV");
+            _showFov = GUILayout.Toggle(_showFov, "  show circle FOV");
             Swatches("Color FOV", ref _fovColor);
 
-            Section("TRIGGERBOT");
-            _triggerbot = GUILayout.Toggle(_triggerbot, " Activado");
-            if (GUILayout.Button(_tbBindListening ? "… pulsá una tecla …" : "Tecla: " + _triggerKey))
+            Section("Triggerbot");
+            _triggerbot = GUILayout.Toggle(_triggerbot, "  Activate");
+            if (PrimaryButton(_tbBindListening ? "… waiting for key press …" : "key   ·   " + _triggerKey))
                 _tbBindListening = true;
-            GUILayout.Label("Delay  " + (_tbDelay * 1000f).ToString("F0") + " ms");
+            GUILayout.Label("Delay   " + (_tbDelay * 1000f).ToString("F0") + " ms");
             _tbDelay = GUILayout.HorizontalSlider(_tbDelay, 0.01f, 0.3f);
-        }
-
-        private void Section(string title)
-        {
-            GUILayout.Space(6f);
-            GUI.color = new Color(0.35f, 0.65f, 1f, 0.85f);
-            GUILayout.Label("▸ " + title);
-            GUI.color = Color.white;
-            GUILayout.Space(2f);
-        }
-
-        private void Hint(string text)
-        {
-            var c = GUI.color;
-            GUI.color = new Color(0.65f, 0.70f, 0.78f, 0.9f);
-            GUILayout.Label(text);
-            GUI.color = c;
         }
 
         private void EspContent()
         {
-            Section("GENERAL");
-            _esp = GUILayout.Toggle(_esp, " ESP master");
-            _showEnemies = GUILayout.Toggle(_showEnemies, " Enemigos");
-            _showTeam = GUILayout.Toggle(_showTeam, " Equipo");
+            Section("General");
+            _esp = GUILayout.Toggle(_esp, "  ESP master");
+            _showEnemies = GUILayout.Toggle(_showEnemies, "  Enemies");
+            _showTeam = GUILayout.Toggle(_showTeam, "  Team");
 
-            Section("INFO 2D");
-            _healthEsp = GUILayout.Toggle(_healthEsp, " Barra de vida");
-            _nameEsp = GUILayout.Toggle(_nameEsp, " Nombre");
-            _weaponEsp = GUILayout.Toggle(_weaponEsp, " Arma");
+            Section("2D Information");
+            _healthEsp = GUILayout.Toggle(_healthEsp, "  Health bar");
+            _nameEsp = GUILayout.Toggle(_nameEsp, "  Name");
+            _weaponEsp = GUILayout.Toggle(_weaponEsp, "  GUN");
 
-            Section("OVERLAY");
-            _extEsp = GUILayout.Toggle(_extEsp, " ESP externo 2D");
-            if (_extEsp) Hint("Invisible en captura · chams internos off");
+            Section("External overlay");
+            _extEsp = GUILayout.Toggle(_extEsp, "  ESP 2D external");
+            if (_extEsp) Hint("Not visible in screenshots · disable internal chams");
 
-            Section("COLORES");
-            Swatches("Nombre", ref _nameColor);
+            Section("Colors");
+            Swatches("Name", ref _nameColor);
             Swatches("Visible", ref _visColor);
-            Swatches("A través de pared", ref _occlColor);
+            Swatches("Concealed / wall-mounted", ref _occlColor);
         }
 
         private void MoveContent()
         {
-            _fly = GUILayout.Toggle(_fly, " Fly (WASD + Space/Ctrl)");
-            GUILayout.Label("Fly speed " + _flySpeed.ToString("F0"));
+            Section("Movimiento");
+            _fly = GUILayout.Toggle(_fly, "  Fly  (WASD + Space/Ctrl)");
+            GUILayout.Label("Velocidad fly   " + _flySpeed.ToString("F0"));
             _flySpeed = GUILayout.HorizontalSlider(_flySpeed, 4f, 60f);
-            _speedhack = GUILayout.Toggle(_speedhack, " Speedhack");
-            GUILayout.Label("Extra speed " + _speedAmount.ToString("F0"));
+
+            GUILayout.Space(4f);
+            _speedhack = GUILayout.Toggle(_speedhack, "  Speedhack");
+            GUILayout.Label("Extra speed   " + _speedAmount.ToString("F0"));
             _speedAmount = GUILayout.HorizontalSlider(_speedAmount, 2f, 40f);
-            _onTop = GUILayout.Toggle(_onTop, " Always on top (walk over geometry)");
-            _bhop = GUILayout.Toggle(_bhop, " Bhop (hold Space)");
+
+            Section("Extra");
+            _onTop = GUILayout.Toggle(_onTop, "  Always on top");
+            _bhop = GUILayout.Toggle(_bhop, "  Bhop  (hold Space)");
         }
 
         private void GunContent()
         {
-            _noRecoil = GUILayout.Toggle(_noRecoil, " No recoil");
-            _noSpread = GUILayout.Toggle(_noSpread, " No spread");
-            _noFireDelay = GUILayout.Toggle(_noFireDelay, " Bullet Storm (kick)");
-            _fastFire = GUILayout.Toggle(_fastFire, " Fire rate boost");
-            GUILayout.Label("Fire rate x" + _fireMult.ToString("F1"));
+            Section("Recoil / Spread");
+            _noRecoil = GUILayout.Toggle(_noRecoil, "  Sin recoil");
+            _noSpread = GUILayout.Toggle(_noSpread, "  Sin spread");
+
+            Section("Cadence");
+            _noFireDelay = GUILayout.Toggle(_noFireDelay, "  Bullet Storm");
+            _fastFire = GUILayout.Toggle(_fastFire, "  Fire rate boost");
+            GUILayout.Label("Multiplicador   x" + _fireMult.ToString("F1"));
             _fireMult = GUILayout.HorizontalSlider(_fireMult, 1f, 4f);
-            _unlimAmmo = GUILayout.Toggle(_unlimAmmo, " Unlimited ammo (OFFLINE)");
+
+            Section("Munición");
+            _unlimAmmo = GUILayout.Toggle(_unlimAmmo, "  Ammo infinito");
+            Hint("Solo offline · el servidor ignora esto online");
         }
 
         private void MiscContent()
         {
-            GUILayout.Label("-- keybinds (mouse buttons blocked) --");
-            if (GUILayout.Button(_menuBindListening ? "press any key..." : "Menu: " + KeyName(_menuKey))) _menuBindListening = true;
-            if (GUILayout.Button(_espKeyListen ? "press any key..." : "ESP toggle: " + KeyName(_espKey))) _espKeyListen = true;
-            if (GUILayout.Button(_aimToggleListen ? "press any key..." : "Aimbot toggle: " + KeyName(_aimToggleKey))) _aimToggleListen = true;
-            if (GUILayout.Button(_flyKeyListen ? "press any key..." : "Fly toggle: " + KeyName(_flyKey))) _flyKeyListen = true;
-            GUILayout.Space(8f);
-            if (GUILayout.Button("SAVE SETTINGS")) SaveCfg();
-            if (GUILayout.Button("Close menu") && _menuOpen) ToggleMenu();
+            Section("Keybinds");
+            Hint("Mouse buttons locked in binds");
+            if (PrimaryButton(_menuBindListening ? "… waiting for key press …" : "Menú   ·   " + KeyName(_menuKey)))
+                _menuBindListening = true;
+            if (PrimaryButton(_espKeyListen ? "… waiting for key press …" : "ESP toggle   ·   " + KeyName(_espKey)))
+                _espKeyListen = true;
+            if (PrimaryButton(_aimToggleListen ? "… waiting for key press …" : "Aimbot toggle   ·   " + KeyName(_aimToggleKey)))
+                _aimToggleListen = true;
+            if (PrimaryButton(_flyKeyListen ? "… waiting for key press …" : "Fly toggle   ·   " + KeyName(_flyKey)))
+                _flyKeyListen = true;
+
+            Section("System");
+            if (PrimaryButton("SAVE CONFIG", 30f))
+                SaveCfg();
+
+            GUILayout.Space(6f);
+            var prev = GUI.backgroundColor;
+            GUI.backgroundColor = UiDanger;
+            if (GUILayout.Button("Close menu", GUILayout.Height(28f)) && _menuOpen)
+                ToggleMenu();
+            GUI.backgroundColor = prev;
         }
         private static string KeyName(KeyCode k) { return k == KeyCode.None ? "unset" : k.ToString(); }
 
