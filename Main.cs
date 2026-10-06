@@ -74,33 +74,49 @@ namespace BFEsp
         private float _tbNextShot;
         private static readonly float[] PartY = { 1.6f, 1.1f, 0.5f };
         private static readonly string[] PartName = { "Head", "Chest", "Pelvis" };
-        // ===== UI theme =====
-        private static readonly Color UiBg = new Color(0.06f, 0.07f, 0.09f, 0.97f);
-        private static readonly Color UiBorder = new Color(0.18f, 0.42f, 0.72f, 0.65f);
-        private static readonly Color UiTitle = new Color(0.09f, 0.22f, 0.40f, 1f);
-        private static readonly Color UiAccent = new Color(0.25f, 0.72f, 1f, 1f);
-        private static readonly Color UiMuted = new Color(0.55f, 0.60f, 0.68f, 0.95f);
-        private static readonly Color UiBtn = new Color(0.14f, 0.16f, 0.20f, 1f);
-        private static readonly Color UiBtnOn = new Color(0.12f, 0.55f, 0.32f, 1f);
-        private static readonly Color UiDanger = new Color(0.75f, 0.22f, 0.22f, 1f);
+        // ===== UI theme (v2 — "Violet Glass") =====
+        private static readonly Color UiBg = new Color(0.035f, 0.038f, 0.055f, 0.985f);  // near-black navy
+        private static readonly Color UiPanel = new Color(0.075f, 0.080f, 0.105f, 1f);   // inner content panel
+        private static readonly Color UiBorder = new Color(0.50f, 0.38f, 1f, 0.55f);     // violet rim
+        private static readonly Color UiGlow = new Color(0.46f, 0.34f, 1f, 0.18f);       // soft outer glow
+        private static readonly Color UiTitle = new Color(0.10f, 0.09f, 0.17f, 1f);      // header bar
+        private static readonly Color UiAccent = new Color(0.60f, 0.46f, 1f, 1f);        // vivid violet
+        private static readonly Color UiAccent2 = new Color(0.30f, 0.85f, 1f, 1f);       // cyan companion
+        private static readonly Color UiMuted = new Color(0.52f, 0.55f, 0.66f, 0.92f);
+        private static readonly Color UiBtn = new Color(0.11f, 0.12f, 0.17f, 1f);
+        private static readonly Color UiBtnOn = new Color(0.44f, 0.34f, 0.96f, 1f);      // accent-tinted ON
+        private static readonly Color UiDanger = new Color(0.92f, 0.27f, 0.40f, 1f);
 
         private GUIStyle _titleStyle;
         private GUIStyle _sectionStyle;
         private GUIStyle _hintStyle;
         private GUIStyle _hudStyle;
+        private GUIStyle _tabStyle;
+        private GUIStyle _tabActiveStyle;
+        private GUIStyle _brandStyle;
+        private GUIStyle _subStyle;
+        private GUIStyle _footStyle;
+        private GUIStyle _toggleStyle;
 
         // FOV circle
         private bool _showFov = true;
         private Color _fovColor = new Color(1f, 1f, 1f, 0.7f);
 
-        // menu — 4 independent draggable windows
+        // menu — single unified panel with sidebar tabs
         private bool _menuOpen;
         private static bool _sMenuOpen;      // mirror so fire hooks can block click-through
+        // legacy per-window rects kept for config back-compat (unused by the new UI)
         private Rect _winAim = new Rect(24f, 24f, 340f, 500f);
         private Rect _winEsp = new Rect(24f, 540f, 340f, 340f);
         private Rect _winMove = new Rect(380f, 24f, 300f, 250f);
         private Rect _winGun = new Rect(380f, 290f, 300f, 280f);
         private Rect _winMisc = new Rect(380f, 586f, 300f, 260f);
+        // unified panel
+        private Rect _winMain = new Rect(160f, 90f, 720f, 520f);
+        private int _activeTab;              // 0=Aim 1=ESP 2=Move 3=Gun 4=Misc
+        private Vector2 _tabScroll;
+        private bool _panelDrag;
+        private Vector2 _panelDragOff;
         private KeyCode _menuKey = KeyCode.Alpha5;
         private bool _menuBindListening;
         private CursorLockMode _prevLock = CursorLockMode.Locked;   // cursor state before the menu opened
@@ -1018,9 +1034,9 @@ namespace BFEsp
                 }
                 else
                 {
-                    GUI.color = new Color(1f, 1f, 1f, 0.85f);
+                    GUI.color = new Color(0.80f, 0.78f, 1f, 0.9f);
                     GUI.Label(new Rect(12f, 10f, 520f, 20f),
-                        "BF  ·  chams " + _touched.Count + "  ·  aim " + ModeName[_aimMode] + "  ·  [5]");
+                        "hamster  ·  chams " + _touched.Count + "  ·  aim " + ModeName[_aimMode] + "  ·  [5] menu");
                     GUI.color = Color.white;
                     if (_showFov && _aimMode != 0)
                         DrawCircle(Screen.width * 0.5f, Screen.height * 0.5f, _aimFov, _fovColor);
@@ -1028,11 +1044,7 @@ namespace BFEsp
 
                 if (!_menuOpen) return;
 
-                DrawWindow(ref _winAim, 1, "AIMBOT", AimContent);
-                DrawWindow(ref _winEsp, 2, "ESP", EspContent);
-                DrawWindow(ref _winMove, 3, "MOVEMENT", MoveContent);
-                DrawWindow(ref _winGun, 4, "GUN MODS", GunContent);
-                DrawWindow(ref _winMisc, 5, "MISC", MiscContent);
+                DrawPanel();
             }
             catch (Exception e) { LoggerInstance.Warning("OnGUI: " + e.Message); }
         }
@@ -1041,14 +1053,14 @@ namespace BFEsp
             if (_titleStyle == null)
             {
                 _titleStyle = new GUIStyle(GUI.skin.label);
-                _titleStyle.fontSize = 13;
+                _titleStyle.fontSize = 14;
                 _titleStyle.fontStyle = FontStyle.Bold;
                 _titleStyle.normal.textColor = Color.white;
             }
             if (_sectionStyle == null)
             {
                 _sectionStyle = new GUIStyle(GUI.skin.label);
-                _sectionStyle.fontSize = 11;
+                _sectionStyle.fontSize = 10;
                 _sectionStyle.fontStyle = FontStyle.Bold;
                 _sectionStyle.normal.textColor = UiAccent;
             }
@@ -1057,32 +1069,250 @@ namespace BFEsp
                 _hintStyle = new GUIStyle(GUI.skin.label);
                 _hintStyle.fontSize = 10;
                 _hintStyle.wordWrap = true;
+                _hintStyle.fontStyle = FontStyle.Italic;
                 _hintStyle.normal.textColor = UiMuted;
             }
             if (_creditStyle == null)
             {
                 _creditStyle = new GUIStyle(GUI.skin.label);
                 _creditStyle.alignment = TextAnchor.MiddleRight;
-                _creditStyle.fontSize = 10;
+                _creditStyle.fontSize = 9;
                 _creditStyle.fontStyle = FontStyle.Bold;
-                _creditStyle.normal.textColor = new Color(0.70f, 0.82f, 1f, 0.55f);
+                _creditStyle.normal.textColor = new Color(UiAccent.r, UiAccent.g, UiAccent.b, 0.60f);
             }
+            if (_brandStyle == null)
+            {
+                _brandStyle = new GUIStyle(GUI.skin.label);
+                _brandStyle.fontSize = 18;
+                _brandStyle.fontStyle = FontStyle.Bold;
+                _brandStyle.alignment = TextAnchor.MiddleLeft;
+                _brandStyle.normal.textColor = Color.white;
+            }
+            if (_subStyle == null)
+            {
+                _subStyle = new GUIStyle(GUI.skin.label);
+                _subStyle.fontSize = 9;
+                _subStyle.alignment = TextAnchor.MiddleLeft;
+                _subStyle.normal.textColor = UiMuted;
+            }
+            if (_tabStyle == null)
+            {
+                _tabStyle = new GUIStyle(GUI.skin.label);
+                _tabStyle.fontSize = 12;
+                _tabStyle.fontStyle = FontStyle.Bold;
+                _tabStyle.alignment = TextAnchor.MiddleLeft;
+                _tabStyle.padding = new RectOffset(16, 4, 0, 0);
+                _tabStyle.normal.textColor = UiMuted;
+            }
+            if (_tabActiveStyle == null)
+            {
+                _tabActiveStyle = new GUIStyle(_tabStyle);
+                _tabActiveStyle.normal.textColor = Color.white;
+            }
+            if (_footStyle == null)
+            {
+                _footStyle = new GUIStyle(GUI.skin.label);
+                _footStyle.fontSize = 9;
+                _footStyle.alignment = TextAnchor.MiddleCenter;
+                _footStyle.normal.textColor = new Color(UiMuted.r, UiMuted.g, UiMuted.b, 0.7f);
+            }
+            if (_toggleStyle == null)
+            {
+                _toggleStyle = new GUIStyle(GUI.skin.toggle);
+                _toggleStyle.fontSize = 11;
+                _toggleStyle.normal.textColor = UiMuted;
+                _toggleStyle.onNormal.textColor = Color.white;
+                _toggleStyle.hover.textColor = Color.white;
+                _toggleStyle.onHover.textColor = Color.white;
+            }
+        }
+
+        private static readonly string[] TabNames = { "AIMBOT", "ESP", "MOVEMENT", "GUN MODS", "MISC" };
+        private static readonly string[] TabIcons = { "◎", "◇", "➤", "✶", "⚙" };
+
+        // The unified, professional single-panel UI.
+        private void DrawPanel()
+        {
+            EnsureUiStyles();
+            if (_pix == null) { _pix = new Texture2D(1, 1); _pix.SetPixel(0, 0, Color.white); _pix.Apply(); }
+
+            Rect win = _winMain;
+            const float HEADER = 54f;
+            const float SIDE = 176f;
+            const float FOOTER = 30f;
+
+            // ---- drag via header ----
+            var ev = Event.current;
+            if (ev != null)
+            {
+                Rect bar = new Rect(win.x, win.y, win.width, HEADER);
+                if (ev.type == EventType.MouseDown && bar.Contains(ev.mousePosition) && !_panelDrag)
+                { _panelDrag = true; _panelDragOff = ev.mousePosition - new Vector2(win.x, win.y); }
+                else if (ev.type == EventType.MouseUp && _panelDrag) _panelDrag = false;
+                if (_panelDrag && ev.type == EventType.MouseDrag)
+                { win.x = ev.mousePosition.x - _panelDragOff.x; win.y = ev.mousePosition.y - _panelDragOff.y; _winMain = win; }
+            }
+
+            // ---- soft outer glow ----
+            GUI.color = UiGlow;
+            GUI.DrawTexture(new Rect(win.x - 8f, win.y - 8f, win.width + 16f, win.height + 16f), _pix);
+            GUI.color = new Color(UiGlow.r, UiGlow.g, UiGlow.b, UiGlow.a * 0.6f);
+            GUI.DrawTexture(new Rect(win.x - 4f, win.y - 4f, win.width + 8f, win.height + 8f), _pix);
+
+            // ---- drop shadow ----
+            GUI.color = new Color(0f, 0f, 0f, 0.5f);
+            GUI.DrawTexture(new Rect(win.x + 6f, win.y + 9f, win.width, win.height), _pix);
+
+            // ---- base ----
+            GUI.color = UiBg;
+            GUI.DrawTexture(win, _pix);
+
+            // ---- sidebar background (slightly darker column) ----
+            GUI.color = new Color(0.025f, 0.027f, 0.040f, 1f);
+            GUI.DrawTexture(new Rect(win.x + 1f, win.y + HEADER, SIDE, win.height - HEADER - 1f), _pix);
+
+            // ---- content panel ----
+            GUI.color = UiPanel;
+            GUI.DrawTexture(new Rect(win.x + SIDE + 1f, win.y + HEADER, win.width - SIDE - 2f, win.height - HEADER - FOOTER), _pix);
+
+            // ---- header ----
+            GUI.color = UiTitle;
+            GUI.DrawTexture(new Rect(win.x, win.y, win.width, HEADER), _pix);
+            // accent gradient line under header
+            GUI.color = UiAccent;
+            GUI.DrawTexture(new Rect(win.x, win.y + HEADER, win.width * 0.62f, 2f), _pix);
+            GUI.color = UiAccent2;
+            GUI.DrawTexture(new Rect(win.x + win.width * 0.62f, win.y + HEADER, win.width * 0.38f, 2f), _pix);
+
+            // ---- brand badge (accent square + wordmark) ----
+            GUI.color = UiAccent;
+            GUI.DrawTexture(new Rect(win.x + 16f, win.y + 16f, 22f, 22f), _pix);
+            GUI.color = UiBg;
+            GUI.DrawTexture(new Rect(win.x + 22f, win.y + 22f, 10f, 10f), _pix);
+            GUI.color = Color.white;
+            GUI.Label(new Rect(win.x + 48f, win.y + 10f, 300f, 20f), "hamster", _brandStyle);
+            GUI.Label(new Rect(win.x + 49f, win.y + 31f, 300f, 14f), "private build  ·  press [5] to toggle", _subStyle);
+
+            // ---- live status chips (top-right of header) ----
+            DrawStatusChip(new Rect(win.x + win.width - 150f, win.y + 12f, 134f, 14f), "AIM", ModeName[_aimMode], _aimMode != 0 ? UiAccent : UiMuted);
+            DrawStatusChip(new Rect(win.x + win.width - 150f, win.y + 30f, 134f, 14f), "ESP", _esp ? "on" : "off", _esp ? UiBtnOn : UiMuted);
+
+            // ---- sidebar tabs ----
+            float ty = win.y + HEADER + 12f;
+            for (int i = 0; i < TabNames.Length; i++)
+            {
+                Rect tab = new Rect(win.x + 10f, ty, SIDE - 20f, 36f);
+                bool active = _activeTab == i;
+                bool hover = ev != null && tab.Contains(ev.mousePosition);
+
+                if (active)
+                {
+                    GUI.color = new Color(UiAccent.r, UiAccent.g, UiAccent.b, 0.16f);
+                    GUI.DrawTexture(tab, _pix);
+                    GUI.color = UiAccent;
+                    GUI.DrawTexture(new Rect(tab.x, tab.y, 3f, tab.height), _pix);   // active marker bar
+                }
+                else if (hover)
+                {
+                    GUI.color = new Color(1f, 1f, 1f, 0.05f);
+                    GUI.DrawTexture(tab, _pix);
+                }
+
+                GUI.color = active ? UiAccent : UiMuted;
+                GUI.Label(new Rect(tab.x + 12f, tab.y, 20f, tab.height), TabIcons[i], _tabActiveStyle);
+                GUI.color = Color.white;
+                GUI.Label(new Rect(tab.x + 20f, tab.y, tab.width - 24f, tab.height), TabNames[i], active ? _tabActiveStyle : _tabStyle);
+
+                if (ev != null && ev.type == EventType.MouseDown && tab.Contains(ev.mousePosition))
+                { _activeTab = i; ev.Use(); }
+
+                ty += 42f;
+            }
+
+            // sidebar footer version tag
+            GUI.color = Color.white;
+            GUI.Label(new Rect(win.x + 10f, win.y + win.height - 26f, SIDE - 20f, 16f), "v16  ·  violet", _subStyle);
+
+            // ---- content area ----
+            float cx = win.x + SIDE + 18f;
+            float cy = win.y + HEADER + 14f;
+            float cw = win.width - SIDE - 36f;
+            float ch = win.height - HEADER - FOOTER - 24f;
+
+            GUILayout.BeginArea(new Rect(cx, cy, cw, ch));
+            _tabScroll = GUILayout.BeginScrollView(_tabScroll, GUILayout.Width(cw), GUILayout.Height(ch));
+            switch (_activeTab)
+            {
+                case 0: AimContent(); break;
+                case 1: EspContent(); break;
+                case 2: MoveContent(); break;
+                case 3: GunContent(); break;
+                case 4: MiscContent(); break;
+            }
+            GUILayout.EndScrollView();
+            GUILayout.EndArea();
+
+            // ---- footer ----
+            GUI.color = UiBorder;
+            GUI.DrawTexture(new Rect(win.x + SIDE, win.y + win.height - FOOTER, win.width - SIDE, 1f), _pix);
+            GUI.color = Color.white;
+            GUI.Label(new Rect(win.x + SIDE, win.y + win.height - FOOTER + 7f, win.width - SIDE, 16f),
+                "hamster  ·  " + _touched.Count + " chams active  ·  drag the header to move", _footStyle);
+
+            // ---- outer 1px frame on top ----
+            GUI.color = UiBorder;
+            GUI.DrawTexture(new Rect(win.x, win.y, win.width, 1f), _pix);
+            GUI.DrawTexture(new Rect(win.x, win.y + win.height - 1f, win.width, 1f), _pix);
+            GUI.DrawTexture(new Rect(win.x, win.y, 1f, win.height), _pix);
+            GUI.DrawTexture(new Rect(win.x + win.width - 1f, win.y, 1f, win.height), _pix);
+            // divider between sidebar and content
+            GUI.color = new Color(UiBorder.r, UiBorder.g, UiBorder.b, 0.35f);
+            GUI.DrawTexture(new Rect(win.x + SIDE, win.y + HEADER, 1f, win.height - HEADER), _pix);
+
+            GUI.color = Color.white;
+        }
+
+        // small pill: LABEL  value
+        private void DrawStatusChip(Rect r, string label, string value, Color accent)
+        {
+            if (_subStyle == null) return;
+            GUI.color = new Color(accent.r, accent.g, accent.b, 0.14f);
+            GUI.DrawTexture(r, _pix);
+            GUI.color = accent;
+            GUI.DrawTexture(new Rect(r.x, r.y, 2f, r.height), _pix);
+            var ls = new GUIStyle(_subStyle); ls.alignment = TextAnchor.MiddleLeft; ls.normal.textColor = UiMuted;
+            var vs = new GUIStyle(_subStyle); vs.alignment = TextAnchor.MiddleRight; vs.fontStyle = FontStyle.Bold; vs.normal.textColor = accent;
+            GUI.color = Color.white;
+            GUI.Label(new Rect(r.x + 8f, r.y, r.width - 16f, r.height), label, ls);
+            GUI.Label(new Rect(r.x + 8f, r.y, r.width - 16f, r.height), value, vs);
         }
 
         private void Section(string title)
         {
-            GUILayout.Space(8f);
-            GUILayout.Label("▸  " + title.ToUpperInvariant(), _sectionStyle);
-            // línea fina
+            GUILayout.Space(9f);
+            GUILayout.BeginHorizontal();
+            // accent tick before the section label
+            if (_pix != null)
+            {
+                var tr = GUILayoutUtility.GetRect(3f, 12f, GUILayout.Width(3f));
+                var tc = GUI.color;
+                GUI.color = UiAccent;
+                GUI.DrawTexture(new Rect(tr.x, tr.y + 1f, 3f, 11f), _pix);
+                GUI.color = tc;
+            }
+            GUILayout.Space(5f);
+            GUILayout.Label(title.ToUpperInvariant(), _sectionStyle);
+            GUILayout.EndHorizontal();
+            // thin gradient-ish divider
             if (_pix != null)
             {
                 var r = GUILayoutUtility.GetRect(1f, 1f, GUILayout.ExpandWidth(true));
                 var c = GUI.color;
-                GUI.color = new Color(UiAccent.r, UiAccent.g, UiAccent.b, 0.35f);
+                GUI.color = new Color(UiAccent.r, UiAccent.g, UiAccent.b, 0.22f);
                 GUI.DrawTexture(new Rect(r.x, r.y, r.width, 1f), _pix);
                 GUI.color = c;
             }
-            GUILayout.Space(4f);
+            GUILayout.Space(5f);
         }
 
         private void Hint(string text)
@@ -1102,10 +1332,23 @@ namespace BFEsp
         private bool ToggleButton(string label, bool on, float height = 26f)
         {
             var prev = GUI.backgroundColor;
+            var prevC = GUI.contentColor;
             GUI.backgroundColor = on ? UiBtnOn : UiBtn;
+            GUI.contentColor = on ? Color.white : UiMuted;
             bool clicked = GUILayout.Button(label, GUILayout.Height(height));
             GUI.backgroundColor = prev;
+            GUI.contentColor = prevC;
             return clicked;
+        }
+
+        // styled checkbox row: accent-tinted mark + hover-ready label
+        private bool Chk(bool value, string label)
+        {
+            var prevBg = GUI.backgroundColor;
+            GUI.backgroundColor = value ? UiAccent : new Color(0.25f, 0.27f, 0.34f, 1f);
+            bool v = GUILayout.Toggle(value, label, _toggleStyle ?? GUI.skin.toggle);
+            GUI.backgroundColor = prevBg;
+            return v;
         }
         // ---- ESP externo: computa la escena (throttled desde OnUpdate, NO desde OnGUI) ----
         private void UpdateExternalEsp()
@@ -1166,54 +1409,6 @@ namespace BFEsp
         }
 
 
-        private void DrawWindow(ref Rect win, int id, string title, Action content)
-        {
-            EnsureUiStyles();
-            if (_pix == null) { _pix = new Texture2D(1, 1); _pix.SetPixel(0, 0, Color.white); _pix.Apply(); }
-
-            var ev = Event.current;
-            if (ev != null)
-            {
-                Rect bar = new Rect(win.x, win.y, win.width, 28f);
-                if (ev.type == EventType.MouseDown && bar.Contains(ev.mousePosition) && _dragId == 0)
-                { _dragId = id; _dragOff = ev.mousePosition - new Vector2(win.x, win.y); }
-                else if (ev.type == EventType.MouseUp && _dragId == id) _dragId = 0;
-                if (_dragId == id && ev.type == EventType.MouseDrag)
-                { win.x = ev.mousePosition.x - _dragOff.x; win.y = ev.mousePosition.y - _dragOff.y; }
-            }
-
-            // sombra suave
-            GUI.color = new Color(0f, 0f, 0f, 0.35f);
-            GUI.DrawTexture(new Rect(win.x + 3f, win.y + 4f, win.width, win.height), _pix);
-
-            // fondo
-            GUI.color = UiBg;
-            GUI.DrawTexture(win, _pix);
-
-            // borde
-            GUI.color = UiBorder;
-            GUI.DrawTexture(new Rect(win.x, win.y, win.width, 1f), _pix);
-            GUI.DrawTexture(new Rect(win.x, win.y + win.height - 1f, win.width, 1f), _pix);
-            GUI.DrawTexture(new Rect(win.x, win.y, 1f, win.height), _pix);
-            GUI.DrawTexture(new Rect(win.x + win.width - 1f, win.y, 1f, win.height), _pix);
-
-            // title bar
-            GUI.color = UiTitle;
-            GUI.DrawTexture(new Rect(win.x, win.y, win.width, 28f), _pix);
-
-            // accent bajo título
-            GUI.color = UiAccent;
-            GUI.DrawTexture(new Rect(win.x, win.y + 28f, win.width, 2f), _pix);
-
-            GUI.color = Color.white;
-            GUI.Label(new Rect(win.x + 10f, win.y + 5f, win.width - 50f, 20f), title, _titleStyle);
-            GUI.Label(new Rect(win.x, win.y + 4f, win.width - 10f, 20f), "BF", _creditStyle);
-
-            GUILayout.BeginArea(new Rect(win.x + 12f, win.y + 36f, win.width - 24f, win.height - 48f));
-            content();
-            GUILayout.EndArea();
-        }
-
         private void AimContent()
         {
             Section("Modo");
@@ -1226,7 +1421,7 @@ namespace BFEsp
             GUILayout.EndHorizontal();
 
             Section("Options");
-            _aimWallcheck = GUILayout.Toggle(_aimWallcheck, "  Only visible enemies");
+            _aimWallcheck = Chk(_aimWallcheck, "  Only visible enemies");
             if (PrimaryButton(_bindListening ? "… waiting for key press …" : "Key Memory   ·   " + _aimKey))
                 _bindListening = true;
             if (PrimaryButton("part of the body   ·   " + PartName[_aimPart]))
@@ -1238,11 +1433,11 @@ namespace BFEsp
             GUILayout.Label("Smooth   " + _aimSmooth.ToString("F2"));
             _aimSmooth = GUILayout.HorizontalSlider(_aimSmooth, 0.03f, 1f);
 
-            _showFov = GUILayout.Toggle(_showFov, "  show circle FOV");
+            _showFov = Chk(_showFov, "  show circle FOV");
             Swatches("Color FOV", ref _fovColor);
 
             Section("Triggerbot");
-            _triggerbot = GUILayout.Toggle(_triggerbot, "  Activate");
+            _triggerbot = Chk(_triggerbot, "  Activate");
             if (PrimaryButton(_tbBindListening ? "… waiting for key press …" : "key   ·   " + _triggerKey))
                 _tbBindListening = true;
             GUILayout.Label("Delay   " + (_tbDelay * 1000f).ToString("F0") + " ms");
@@ -1252,17 +1447,17 @@ namespace BFEsp
         private void EspContent()
         {
             Section("General");
-            _esp = GUILayout.Toggle(_esp, "  ESP master");
-            _showEnemies = GUILayout.Toggle(_showEnemies, "  Enemies");
-            _showTeam = GUILayout.Toggle(_showTeam, "  Team");
+            _esp = Chk(_esp, "  ESP master");
+            _showEnemies = Chk(_showEnemies, "  Enemies");
+            _showTeam = Chk(_showTeam, "  Team");
 
             Section("2D Information");
-            _healthEsp = GUILayout.Toggle(_healthEsp, "  Health bar");
-            _nameEsp = GUILayout.Toggle(_nameEsp, "  Name");
-            _weaponEsp = GUILayout.Toggle(_weaponEsp, "  GUN");
+            _healthEsp = Chk(_healthEsp, "  Health bar");
+            _nameEsp = Chk(_nameEsp, "  Name");
+            _weaponEsp = Chk(_weaponEsp, "  GUN");
 
             Section("External overlay");
-            _extEsp = GUILayout.Toggle(_extEsp, "  ESP 2D external");
+            _extEsp = Chk(_extEsp, "  ESP 2D external");
             if (_extEsp) Hint("Not visible in screenshots · disable internal chams");
 
             Section("Colors");
@@ -1274,34 +1469,34 @@ namespace BFEsp
         private void MoveContent()
         {
             Section("Movimiento");
-            _fly = GUILayout.Toggle(_fly, "  Fly  (WASD + Space/Ctrl)");
+            _fly = Chk(_fly, "  Fly  (WASD + Space/Ctrl)");
             GUILayout.Label("Velocidad fly   " + _flySpeed.ToString("F0"));
             _flySpeed = GUILayout.HorizontalSlider(_flySpeed, 4f, 60f);
 
             GUILayout.Space(4f);
-            _speedhack = GUILayout.Toggle(_speedhack, "  Speedhack");
+            _speedhack = Chk(_speedhack, "  Speedhack");
             GUILayout.Label("Extra speed   " + _speedAmount.ToString("F0"));
             _speedAmount = GUILayout.HorizontalSlider(_speedAmount, 2f, 40f);
 
             Section("Extra");
-            _onTop = GUILayout.Toggle(_onTop, "  Always on top");
-            _bhop = GUILayout.Toggle(_bhop, "  Bhop  (hold Space)");
+            _onTop = Chk(_onTop, "  Always on top");
+            _bhop = Chk(_bhop, "  Bhop  (hold Space)");
         }
 
         private void GunContent()
         {
             Section("Recoil / Spread");
-            _noRecoil = GUILayout.Toggle(_noRecoil, "  Sin recoil");
-            _noSpread = GUILayout.Toggle(_noSpread, "  Sin spread");
+            _noRecoil = Chk(_noRecoil, "  Sin recoil");
+            _noSpread = Chk(_noSpread, "  Sin spread");
 
             Section("Cadence");
-            _noFireDelay = GUILayout.Toggle(_noFireDelay, "  Bullet Storm");
-            _fastFire = GUILayout.Toggle(_fastFire, "  Fire rate boost");
+            _noFireDelay = Chk(_noFireDelay, "  Bullet Storm");
+            _fastFire = Chk(_fastFire, "  Fire rate boost");
             GUILayout.Label("Multiplicador   x" + _fireMult.ToString("F1"));
             _fireMult = GUILayout.HorizontalSlider(_fireMult, 1f, 4f);
 
             Section("Munición");
-            _unlimAmmo = GUILayout.Toggle(_unlimAmmo, "  Ammo infinito");
+            _unlimAmmo = Chk(_unlimAmmo, "  Ammo infinito");
             Hint("Solo offline · el servidor ignora esto online");
         }
 
