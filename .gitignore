@@ -2,3 +2,9 @@ bin/
 obj/
 *.dll
 *.user
+
+# Visual Studio
+.vs/
+*.suo
+*.userosscache
+*.sln.docstates
