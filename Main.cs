@@ -1004,8 +1004,10 @@ namespace BFEsp
                 }
                 else
                 {
-                    GUI.Label(new Rect(12f, 12f, 800f, 22f), "BF ESP  chams:" + _touched.Count + "  aim:" + ModeName[_aimMode] + "   [press 5]");
-                    DrawInfoEsp();
+                    GUI.color = new Color(1f, 1f, 1f, 0.85f);
+                    GUI.Label(new Rect(12f, 10f, 520f, 20f),
+                        "BF  ·  chams " + _touched.Count + "  ·  aim " + ModeName[_aimMode] + "  ·  [5]");
+                    GUI.color = Color.white;
                     if (_showFov && _aimMode != 0)
                         DrawCircle(Screen.width * 0.5f, Screen.height * 0.5f, _aimFov, _fovColor);
                 }
@@ -1085,62 +1087,126 @@ namespace BFEsp
             var ev = Event.current;
             if (ev != null)
             {
-                Rect bar = new Rect(win.x, win.y, win.width, 24f);
-                if (ev.type == EventType.MouseDown && bar.Contains(ev.mousePosition) && _dragId == 0) { _dragId = id; _dragOff = ev.mousePosition - new Vector2(win.x, win.y); }
+                Rect bar = new Rect(win.x, win.y, win.width, 26f);
+                if (ev.type == EventType.MouseDown && bar.Contains(ev.mousePosition) && _dragId == 0)
+                { _dragId = id; _dragOff = ev.mousePosition - new Vector2(win.x, win.y); }
                 else if (ev.type == EventType.MouseUp && _dragId == id) _dragId = 0;
-                if (_dragId == id && ev.type == EventType.MouseDrag) { win.x = ev.mousePosition.x - _dragOff.x; win.y = ev.mousePosition.y - _dragOff.y; }
+                if (_dragId == id && ev.type == EventType.MouseDrag)
+                { win.x = ev.mousePosition.x - _dragOff.x; win.y = ev.mousePosition.y - _dragOff.y; }
             }
+
             if (_pix == null) { _pix = new Texture2D(1, 1); _pix.SetPixel(0, 0, Color.white); _pix.Apply(); }
-            // opaque fill + coloured title strip
-            GUI.color = new Color(0.09f, 0.10f, 0.13f, 1f); GUI.DrawTexture(win, _pix);
-            GUI.color = new Color(0.16f, 0.34f, 0.55f, 1f); GUI.DrawTexture(new Rect(win.x, win.y, win.width, 24f), _pix);
+
+            // fondo
+            GUI.color = new Color(0.07f, 0.08f, 0.10f, 0.96f);
+            GUI.DrawTexture(win, _pix);
+
+            // borde sutil
+            GUI.color = new Color(0.20f, 0.45f, 0.70f, 0.55f);
+            GUI.DrawTexture(new Rect(win.x, win.y, win.width, 1f), _pix);
+            GUI.DrawTexture(new Rect(win.x, win.y + win.height - 1f, win.width, 1f), _pix);
+            GUI.DrawTexture(new Rect(win.x, win.y, 1f, win.height), _pix);
+            GUI.DrawTexture(new Rect(win.x + win.width - 1f, win.y, 1f, win.height), _pix);
+
+            // title bar
+            GUI.color = new Color(0.12f, 0.28f, 0.48f, 1f);
+            GUI.DrawTexture(new Rect(win.x, win.y, win.width, 26f), _pix);
+
+            // accent line bajo el título
+            GUI.color = new Color(0.30f, 0.70f, 1f, 0.9f);
+            GUI.DrawTexture(new Rect(win.x, win.y + 26f, win.width, 2f), _pix);
+
             GUI.color = Color.white;
-            // credits, top-right of the title bar
-            if (_creditStyle == null) { _creditStyle = new GUIStyle(GUI.skin.label); _creditStyle.alignment = TextAnchor.MiddleRight; _creditStyle.fontStyle = FontStyle.Bold; }
-            GUI.Label(new Rect(win.x, win.y + 2f, win.width - 8f, 20f), "dc: 8832", _creditStyle);
-            GUILayout.BeginArea(new Rect(win.x + 8f, win.y + 4f, win.width - 16f, win.height - 8f));
-            GUILayout.Label(title + "   :: drag");
+            if (_creditStyle == null)
+            {
+                _creditStyle = new GUIStyle(GUI.skin.label);
+                _creditStyle.alignment = TextAnchor.MiddleRight;
+                _creditStyle.fontStyle = FontStyle.Bold;
+                _creditStyle.fontSize = 11;
+                _creditStyle.normal.textColor = new Color(0.75f, 0.85f, 1f, 0.7f);
+            }
+            GUI.Label(new Rect(win.x, win.y + 3f, win.width - 10f, 20f), "BF", _creditStyle);
+
+            GUILayout.BeginArea(new Rect(win.x + 10f, win.y + 32f, win.width - 20f, win.height - 40f));
+            GUILayout.Label("<b>" + title + "</b>");
+            GUILayout.Space(4f);
             content();
             GUILayout.EndArea();
         }
 
         private void AimContent()
         {
-            GUILayout.Label("-- aim assist (pick one) --");
+            Section("MODO");
             GUILayout.BeginHorizontal();
-            for (int i = 0; i < 4; i++) { GUI.color = _aimMode == i ? Color.green : Color.white; if (GUILayout.Button(ModeName[i])) _aimMode = i; }
-            GUI.color = Color.white;
+            for (int i = 0; i < 4; i++)
+            {
+                GUI.backgroundColor = _aimMode == i ? new Color(0.2f, 0.75f, 0.35f) : new Color(0.25f, 0.28f, 0.32f);
+                if (GUILayout.Button(ModeName[i], GUILayout.Height(24f))) _aimMode = i;
+            }
+            GUI.backgroundColor = Color.white;
             GUILayout.EndHorizontal();
-            _aimWallcheck = GUILayout.Toggle(_aimWallcheck, " Wallcheck (visible only)");
-            if (GUILayout.Button(_bindListening ? "press any key..." : "Memory key: " + _aimKey)) _bindListening = true;
-            if (GUILayout.Button("Target: " + PartName[_aimPart])) _aimPart = (_aimPart + 1) % 3;
-            GUILayout.Label("FOV radius " + _aimFov.ToString("F0") + "px");
+
+            Section("OPCIONES");
+            _aimWallcheck = GUILayout.Toggle(_aimWallcheck, " Solo visibles (wallcheck)");
+            if (GUILayout.Button(_bindListening ? "… pulsá una tecla …" : "Tecla Memory: " + _aimKey))
+                _bindListening = true;
+            if (GUILayout.Button("Parte: " + PartName[_aimPart]))
+                _aimPart = (_aimPart + 1) % 3;
+
+            GUILayout.Label("FOV  " + _aimFov.ToString("F0") + " px");
             _aimFov = GUILayout.HorizontalSlider(_aimFov, 20f, 500f);
-            GUILayout.Label("Smoothing (Memory only) " + _aimSmooth.ToString("F2"));
+
+            GUILayout.Label("Smooth  " + _aimSmooth.ToString("F2"));
             _aimSmooth = GUILayout.HorizontalSlider(_aimSmooth, 0.03f, 1f);
-            _showFov = GUILayout.Toggle(_showFov, " Show FOV circle");
-            Swatches("FOV circle color:", ref _fovColor);
-            GUILayout.Space(4f);
-            GUILayout.Label("-- triggerbot --");
-            _triggerbot = GUILayout.Toggle(_triggerbot, " Triggerbot enabled");
-            if (GUILayout.Button(_tbBindListening ? "press any key..." : "Trigger key: " + _triggerKey)) _tbBindListening = true;
-            GUILayout.Label("Fire delay " + (_tbDelay * 1000f).ToString("F0") + "ms");
+
+            _showFov = GUILayout.Toggle(_showFov, " Círculo FOV");
+            Swatches("Color FOV", ref _fovColor);
+
+            Section("TRIGGERBOT");
+            _triggerbot = GUILayout.Toggle(_triggerbot, " Activado");
+            if (GUILayout.Button(_tbBindListening ? "… pulsá una tecla …" : "Tecla: " + _triggerKey))
+                _tbBindListening = true;
+            GUILayout.Label("Delay  " + (_tbDelay * 1000f).ToString("F0") + " ms");
             _tbDelay = GUILayout.HorizontalSlider(_tbDelay, 0.01f, 0.3f);
+        }
+
+        private void Section(string title)
+        {
+            GUILayout.Space(6f);
+            GUI.color = new Color(0.35f, 0.65f, 1f, 0.85f);
+            GUILayout.Label("▸ " + title);
+            GUI.color = Color.white;
+            GUILayout.Space(2f);
+        }
+
+        private void Hint(string text)
+        {
+            var c = GUI.color;
+            GUI.color = new Color(0.65f, 0.70f, 0.78f, 0.9f);
+            GUILayout.Label(text);
+            GUI.color = c;
         }
 
         private void EspContent()
         {
+            Section("GENERAL");
             _esp = GUILayout.Toggle(_esp, " ESP master");
-            _showEnemies = GUILayout.Toggle(_showEnemies, " Chams enemies");
-            _showTeam = GUILayout.Toggle(_showTeam, " Chams teammates");
-            _healthEsp = GUILayout.Toggle(_healthEsp, " Health bar ESP");
-            _nameEsp = GUILayout.Toggle(_nameEsp, " Name ESP");
-            _weaponEsp = GUILayout.Toggle(_weaponEsp, " Weapon ESP");
-            _extEsp = GUILayout.Toggle(_extEsp, " ESP externo 2D (invisible en captura)");
-            if (_extEsp) GUILayout.Label("   (chams internos OFF mientras esto esté activo)");
-            Swatches("name color:", ref _nameColor);
-            Swatches("visible color:", ref _visColor);
-            Swatches("through-wall color:", ref _occlColor);
+            _showEnemies = GUILayout.Toggle(_showEnemies, " Enemigos");
+            _showTeam = GUILayout.Toggle(_showTeam, " Equipo");
+
+            Section("INFO 2D");
+            _healthEsp = GUILayout.Toggle(_healthEsp, " Barra de vida");
+            _nameEsp = GUILayout.Toggle(_nameEsp, " Nombre");
+            _weaponEsp = GUILayout.Toggle(_weaponEsp, " Arma");
+
+            Section("OVERLAY");
+            _extEsp = GUILayout.Toggle(_extEsp, " ESP externo 2D");
+            if (_extEsp) Hint("Invisible en captura · chams internos off");
+
+            Section("COLORES");
+            Swatches("Nombre", ref _nameColor);
+            Swatches("Visible", ref _visColor);
+            Swatches("A través de pared", ref _occlColor);
         }
 
         private void MoveContent()
